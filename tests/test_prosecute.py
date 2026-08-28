@@ -532,27 +532,39 @@ def test_prosecute_stays_well_under_the_five_second_deadline_even_on_a_large_tra
 
 
 def test_starter_end_to_end_against_the_full_fixture_set(labelled_fixtures):
+    """Rewritten from the starter's shape (1 of 17 classes, recall < 0.15) to the
+    completed prosecutor's: all 17 implemented, and still not a single false claim.
+
+    The direction of the change matters more than the numbers. Recall going up is
+    easy -- file everything and it hits 1.0 by accident. What this test pins is that
+    recall went up *without* `false`, `rejected` or `false_claim_rate` moving off
+    zero, which is the only way the movement is worth credits (RULES.md section 6:
+    a false claim costs 0.8x the class weight, and refusing costs nothing)."""
     report = score_prosecutor(prosecute, labelled_fixtures)
 
     assert report["n_fixtures"] == len(labelled_fixtures)
     assert report["n_errors"] == 0
     assert report["n_timeouts"] == 0
-    assert report["false"] == 0, "the starter's one detector must never file a false claim on this fixture set"
-    assert report["rejected"] == 0, "the starter must never emit a schema-invalid or over-quota claim on its own"
+    assert report["false"] == 0, "no detector may file a false claim on this fixture set"
+    assert report["rejected"] == 0, "every filed claim must be schema-valid, single-class and in quota"
 
     # precision perfect: it never guesses wrong when it does file
     assert report["precision"] == 1.0
-    # recall low: it implements exactly 1 of 17 classes
-    assert 0.0 < report["recall"] < 0.15
+    # recall perfect: all 17 classes are implemented, none of them bought with a guess
+    assert report["recall"] == 1.0
     assert report["false_claim_rate"] == 0.0
 
-    assert report["per_class"]["enforcement_failure"]["recall"] == 1.0
-    assert report["per_class"]["enforcement_failure"]["present"] == 2
-    assert report["per_class"]["enforcement_failure"]["verified"] == 2
-    # every other class: present in the fixtures, but never claimed (stub hooks)
-    for cls in CLASSES - {"enforcement_failure"}:
-        assert report["per_class"][cls]["present"] >= 2
-        assert report["per_class"][cls]["claimed"] == 0
+    # Per class: VERIFIED on both halves of the pair, not merely claimed. The
+    # near_miss half is structurally identical to the positive and differs only in
+    # which events prove it, so `unproven == 0` here is what says each hook cites
+    # the causal event instead of the plausible decoy.
+    for cls in CLASSES:
+        stats = report["per_class"][cls]
+        assert stats["present"] >= 2, cls
+        assert stats["verified"] == stats["present"], f"{cls}: {stats}"
+        assert stats["unproven"] == 0, f"{cls} cited a decoy rather than the causal event: {stats}"
+        assert stats["false"] == 0, cls
+        assert stats["recall"] == 1.0, cls
 
 
 def test_starter_files_nothing_on_clean_fixtures(labelled_fixtures):

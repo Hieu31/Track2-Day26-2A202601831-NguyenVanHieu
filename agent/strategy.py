@@ -404,13 +404,17 @@ if __name__ == "__main__":
         f"  disciplined (ceiling, {disciplined}cr) x10 rounds -> spent={disciplined_pacer.credits_spent} "
         f"credits_left={disciplined_pacer.credits_left} bankrupt_by={disciplined_pacer.bankrupt_by()}"
     )
-    # Even the CEILING of "disciplined" (paying full price for query + get_frame
-    # + provenance, EVERY round, with no caching at all) survives nine full
-    # rounds and only runs dry paying for the tenth -- a sharp contrast with
-    # careless play below, and the honest reason ResultCache/pacing exist:
-    # not needing all three calls every round is what buys the margin
-    # FINAL-PLAN.md 4.3 calls "sustainable".
-    assert disciplined_pacer.bankrupt_by() == ROUNDS_PER_DUEL, disciplined_pacer.bankrupt_by()
+    # `disciplined_round_cost()` computes 9, comfortably inside FINAL-PLAN.md
+    # 4.3's "8-11" band, so ten disciplined rounds cost 90 of the 100-credit
+    # pool and NEVER go negative -- `bankrupt_by()` is therefore `None`, per
+    # its own docstring ("or `None` if it never did"). The margin is only 10
+    # credits. That is roughly ONE more disciplined round of slack, and barely a
+    # fifth of a single careless one. That thinness -- not bankruptcy -- is the
+    # honest reason ResultCache/pacing exist. At the band's 11-credit CEILING the
+    # same ten rounds would cost 110 and run dry paying for the tenth, which is
+    # how little slack "sustainable" actually means here.
+    assert disciplined_pacer.bankrupt_by() is None, disciplined_pacer.bankrupt_by()
+    assert 0 <= disciplined_pacer.credits_left < careless, disciplined_pacer.credits_left
     nine_rounds_pacer = BudgetPacer()
     for round_no in range(1, ROUNDS_PER_DUEL):  # 9 rounds, not 10
         nine_rounds_pacer.record_spend(round_no, disciplined)
